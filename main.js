@@ -9,13 +9,14 @@ var bodyParser = require('body-parser')
 var db = mysql.createConnection({
     host: 'localhost',
     user: 'root',
-    password: '#%gimco682GILgodarling',
-    database: 'mybox',
+    password: 'ijnad825&luvJSY98%',
+    database: 'project_2',
     dateStrings: "date"
 });
 db.connect();
 
 app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.static('public'));
 
 app.get('/', (request, response) => {
     var body = `
@@ -34,21 +35,49 @@ app.get('/memo', (request, response) => {
         if (err) {
             throw err;
         }
+        console.log(memos);
         var body = `
         <h3>
-            <a href = '/memo/create'>+ new memo</a>
+            <input type="button" id="button" value="+ new memo"
+            style="border:none; background:none;font-size:20px;"
+            onmouseover="this.style.color='blue'"
+            onmouseout="this.style.color='black'">
         </h3>
-        <p>Click title to edit memo</p>
+        <article id="choicetypes"></article>
+        <script>
+        document.getElementById("button").addEventListener("click", function () {
+                var choicetypes = document.getElementById("choicetypes");
+                
+                if (choicetypes.innerHTML.trim() === "") {
+                    fetch('/selectType.html')
+                        .then(response => response.text())
+                        .then(text => {
+                            choicetypes.innerHTML = text;
+                        });
+                } else {
+                    choicetypes.innerHTML = "";
+                }
+            });
+        </script>
         `;
         var list = '<ul>';
         var i = 0;
         while (i < memos.length) {
             list = list + `<li style="list-style:none">
-            <h3><a href='/memo/update'${memos[i].title}</h3>
-            <h4 style="display:inline">${memos[i].type}</h4>
-            <h5 style="display:inline">: ${memos[i].tag}</h5>
-            <p>${memos[i].text}</p>
-            <p>${memos[i].date}</p>
+                <form action="/memo/edit" method="post">
+                    <input type="hidden" name="id" value="${memos[i].id}">
+                    <input type="hidden" name="type" value="${memos[i].type}">
+                    <input type="hidden" name="tag" value="${memos[i].tag}">
+                    <input type="hidden" name="title" value="${memos[i].title}">
+                    <input type="hidden" name="text" value="${memos[i].text}">
+                    <button type="submit" style="border: none; background: none; padding: 0; text-align: left; cursor: pointer;">
+                        <h3>${memos[i].title}</h3>
+                        <h4 style="display:inline">${memos[i].type}</h4>
+                        <h5 style="display:inline">: ${memos[i].tag}</h5>
+                        <p>${memos[i].text}</p>
+                        <p>${memos[i].date}</p>
+                    </button>
+                </form>
             </li>`;
             i = i + 1;
         }
@@ -57,26 +86,69 @@ app.get('/memo', (request, response) => {
         response.send(tem.html(body));
     });
 })
-app.get('/memo/create', (request, response) => {
-    var body = `
-    <h2>Choose the type of new memo</h2>
-    <ul>
-        <li>
-            <a href="/memo/create/learning">Learning</a>
-        </li>
-        <li>
-            <a href="/memo/create/idea">Idea</a>
-        </li>
-        <li>
-            <a href="/memo/create/thanks">Thanks</a>
-        </li>
-    </ul>
-    `;
-    response.send(tem.html(body));
+app.post('/memo/edit', (request, response) => {
+    var id = request.body.id;
+    var tag = request.body.tag;
+    var title = request.body.title;
+    var text = request.body.text;
+    db.query("SELECT * FROM tag", (err2, tags) => {
+        if (err2) {
+            throw (err2);
+        }
+        var i = 0;
+        var list = `<select name='tag'>`;
+        while (i < tags.length) {
+            if (tags[i].name === tag) {
+                list = list + `<option value=${tags[i].name} selected>${tags[i].name}</option>`;
+            }
+            else {
+                list = list + `<option value=${tags[i].name}>${tags[i].name}</option>`;
+            }
+            i = i + 1;
+        }
+        list = list + '</select>';
+
+        var body = `
+            <form action="/memo/edit_update" method ="post">
+                <input type="hidden" name="id" value="${id}">
+                ${list}
+                <input name="title" placeholder="write title here..." style="display:block" value="${title}">
+                <textarea name="text" style="display:block">${text}</textarea>
+                <input type="submit" value="Done">
+            </form>
+            <form action="/memo/edit_delete" method ="post">
+                <input type="hidden" name="id" value="${id}">
+                <input type="submit" value="Delete">
+            </form>
+            `;
+        response.send(tem.html(body));
+    })
+
 })
-app.get('/memo/create/:type', (request, response) => {
+app.post('/memo/edit_update', (request, response) => {
+    var id = request.body.id;
+    var tag = request.body.tag;
+    var title = request.body.title;
+    var text = request.body.text;
+    db.query(`UPDATE memo SET tag=?,title=?,text=? WHERE id =?`, [tag, title, text, id], (err, results) => {
+        if (err) {
+            throw err;
+        }
+        response.redirect('/memo');
+    })
+})
+app.post('/memo/edit_delete', (request, response) => {
+    var id = request.body.id;
+    db.query(`DELETE FROM memo WHERE id =?`, [id], (err, results) => {
+        if (err) {
+            throw err;
+        }
+        response.redirect('/memo');
+    })
+})
+app.post('/memo/create', (request, response) => {
     db.query('SELECT * FROM tag', (err, tags) => {
-        var type = request.params.type;
+        var type = request.body.id;
         var body = '';
         if (type === 'learning') {
             body += '<h2>Today I learned...</h2>';
@@ -85,20 +157,21 @@ app.get('/memo/create/:type', (request, response) => {
         } else {
             body += `<h2>Today I'm thankful for...</h2>`
         }
-        
+
         var i = 0;
-        var list = '';
+        var list = `<select name='tag'>`;
         while (i < tags.length) {
             list = list + `<option value=${tags[i].name}>${tags[i].name}</option>`;
             i = i + 1;
         }
-        list = list + '</ul>';
-        var body = `
-        <form action="/memo/create/${type}/process" method ="post">
+        list = list + '</select>';
+        if (list === '<select></select>') {
+            list = `<p>you don't have any tags</p>`;
+        }
+        body += `
+        <form action="/memo/create_process" method ="post">
             <input type="hidden" name="type" value="${type}">
-            <select name="tag">
             ${list}
-            </select>
             <input name="title" placeholder="write title here..." style="display:block">
             <textarea name="text" style="display:block"></textarea>
             <input type="submit" value="Done">
@@ -106,16 +179,14 @@ app.get('/memo/create/:type', (request, response) => {
         response.send(tem.html(body));
     })
 })
-app.post('/memo/create/:type/process', (request, response)=>{
+app.post('/memo/create_process', (request, response) => {
     var body = request.body;
     db.query('INSERT INTO memo (type, tag, title, text, date) VALUES (?,?,?,?,NOW())',
-        [body.type, body.tag, body.title, body.text], (err, result)=>{
+        [body.type, body.tag, body.title, body.text], (err, result) => {
             response.redirect('/memo');
         })
 })
 app.get('/tag', (request, response) => {
-    var _url = request.url;
-    var queryData = url.parse(_url, true).query;
     db.query(`SELECT * FROM tag`, (err, tags) => {
         if (err) {
             throw err;
@@ -123,7 +194,15 @@ app.get('/tag', (request, response) => {
         var list = '<ul>';
         var i = 0;
         while (i < tags.length) {
-            list = list + `<li><a href="/tag/edit">${tags[i].name}</a></li>`;
+            list = list + `<li>
+            <form action="/tag/edit" method="post">
+                <input type='hidden' name='id' value='${tags[i].name}'>
+                <input type='submit' value='${tags[i].name}' 
+                style='text-align:left; width:150px; background:none; border:none;'
+                onmouseover="this.style.color='blue'"
+                onmouseout="this.style.color='black'">
+            </form>
+            </li>`;
             i = i + 1;
         }
         list = list + '</ul>';
@@ -132,35 +211,42 @@ app.get('/tag', (request, response) => {
             <input type="text" name="name" placeholder="Add new tag here">
             <input type="submit" value="+">
         </form>
-        <p>Click tag to edit</p>
+        <p>Click to edit</p>
         ${list}
     `;
         response.send(tem.html(body));
     });
 })
-app.get('/tag/edit', (request, response) => {
+app.post('/tag/edit', (request, response) => {
     db.query(`SELECT * FROM tag`, (err, tags) => {
         if (err) {
             throw err;
         }
-        var tagname = request.params.name;
         var list = '<ul>';
         var i = 0;
         while (i < tags.length) {
-            if (tags[i].name === tagname) {
+            if (tags[i].name === request.body.id) {
                 list = list + `<li>
-                <form action="/tag/edit/update" method="post" style="display:inline">
+                <form action="/tag/edit_update" method="post" style="display:inline">
                     <input type="hidden" name="id" value="${tags[i].name}">
                     <input type="text" name="name" value="${tags[i].name}"><input type="submit" value="OK">
                 </form>
-                <form action="/tag/edit/delete" method="post" style="display:inline">
+                <form action="/tag/edit_delete" method="post" style="display:inline">
                 <input type="hidden" name="id" value="${tags[i].name}">
                 <input type="submit" value="X">
                 </form>
                 </li>`;
             }
             else {
-                list = list + `<li><a href="/tag/${tags[i].name}">${tags[i].name}</a></li>`;
+                list = list + `<li>
+                <form action="/tag/edit" method="post">
+                    <input type='hidden' name='id' value='${tags[i].name}'>
+                    <input type='submit' value='${tags[i].name}' 
+                    style='text-align:left; width:150px; background:none; border:none;'
+                    onmouseover="this.style.color='blue'"
+                    onmouseout="this.style.color='black'">
+                    </form>
+                </li>`;
             }
             i++;
         }
@@ -200,7 +286,7 @@ app.post('/tag/create', (request, response) => {
     })
 
 })
-app.post('/tag/edit/update', (request, response) => {
+app.post('/tag/edit_update', (request, response) => {
     var id = request.body.id;
     var name = request.body.name;
     db.query(`UPDATE tag SET name=? WHERE name =?`, [name, id], (err1, results1) => {
@@ -210,7 +296,7 @@ app.post('/tag/edit/update', (request, response) => {
         response.redirect('/tag');
     })
 })
-app.post('/tag/edit/delete', (request, response) => {
+app.post('/tag/edit_delete', (request, response) => {
     var id = request.body.id;
     db.query(`DELETE FROM tag WHERE name =?`, [id], (err2, results) => {
         if (err2) {
